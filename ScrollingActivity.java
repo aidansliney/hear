@@ -140,6 +140,7 @@ public class ScrollingActivity extends AppCompatActivity {
 
 
             return true;
+            //
         }
         if (id == R.id.rate_settings) {
             rateApp();
