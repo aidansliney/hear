@@ -1,17 +1,20 @@
 package com.hear2.aidansliney.hear2;
 
 import android.Manifest;
+import android.animation.ArgbEvaluator;
+import android.animation.ValueAnimator;
 import android.app.Activity;
-import android.app.ActivityManager;
 import android.content.ActivityNotFoundException;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.graphics.Color;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
-import android.support.annotation.Nullable;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
 import android.support.v4.app.ActivityCompat;
+import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
@@ -19,9 +22,11 @@ import android.util.Log;
 import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.animation.Animation;
+import android.view.animation.AnimationUtils;
+import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
-
 import com.cleveroad.audiovisualization.AudioVisualization;
 import com.cleveroad.audiovisualization.DbmHandler;
 
@@ -35,47 +40,53 @@ public class ScrollingActivity extends AppCompatActivity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+
         setContentView(R.layout.activity_scrolling);
         Toolbar toolbar = (Toolbar) findViewById(R.id.toolbar);
         setSupportActionBar(toolbar);
 
+        //Aidan: linking the visualiser
+        //https://github.com/Cleveroad/WaveInApp
         audioVisualization = (AudioVisualization) findViewById(R.id.visualizer_view);
-        //missing covering what happens if they say no also, should only ask if not already given
-        ActivityCompat.requestPermissions(this,
-                new String[]{Manifest.permission.RECORD_AUDIO},
-                1);
-
         audioVisualization.linkTo(DbmHandler.Factory.newVisualizerHandler(getApplicationContext(), 0));
-        final SeekBar slider = (SeekBar) findViewById(R.id.slider);
 
+        final SeekBar slider = (SeekBar) findViewById(R.id.slider);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
         fab.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-
                 FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
-
                 if (listening  == 0)
                 {
+                    //Get audio permission if we don't already have it
+                    if (ContextCompat.checkSelfPermission(ScrollingActivity.this, Manifest.permission.RECORD_AUDIO) != PackageManager.PERMISSION_GRANTED) {
+                        Log.d("log","Request Permission");
+                        ActivityCompat.requestPermissions(ScrollingActivity.this, new String[]{Manifest.permission.RECORD_AUDIO}, 1);
+                    }
+                    else
+                    {
+                        Log.d("log","We already have the permission");
+                    }
                     //start listening
+                    fade(findViewById(R.id.noisyScene));
+                    startQuietAnimation();
                     fab.setImageResource(android.R.drawable.ic_media_pause);
-                    listening  = 1;
-                    Snackbar.make(view, "Listening started...", Snackbar.LENGTH_LONG)
-                            .setAction("Action", null).show();
+                    listening  = 1; //on
+                    Snackbar.make(view, "Listening started...", Snackbar.LENGTH_LONG).setAction("Action", null).show();
                 }
 
                 else
                 {
                     //stop listening
+                    fadeIn(findViewById(R.id.noisyScene));
                     fab.setImageResource(android.R.drawable.ic_lock_silent_mode_off);
-                    listening  = 0;
-                    Snackbar.make(view, "Listening stopped...", Snackbar.LENGTH_LONG)
-                            .setAction("Action", null).show();
-
+                    listening  = 0; //off
+                    Snackbar.make(view, "Listening stopped...", Snackbar.LENGTH_LONG).setAction("Action", null).show();
                 }
             }
         });
 
+        //Slider
         TextView seekbar_0 = (TextView) findViewById(R.id.seekbar_0);
         seekbar_0.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -101,11 +112,9 @@ public class ScrollingActivity extends AppCompatActivity {
 
     @Override
     public void onPause() {
-        audioVisualization.onPause();
+       audioVisualization.onPause();
         super.onPause();
     }
-
-
 
     @Override
     public boolean onCreateOptionsMenu(Menu menu) {
@@ -120,27 +129,15 @@ public class ScrollingActivity extends AppCompatActivity {
         // automatically handle clicks on the Home/Up button, so long
         // as you specify a parent activity in AndroidManifest.xml.
         int id = item.getItemId();
-
         //noinspection SimplifiableIfStatement
         if (id == R.id.info_settings) {
-
-            //startActivity(new Intent(ScrollingActivity.this, infoActivity.class));
-
             // 1. Instantiate an AlertDialog.Builder with its constructor
             AlertDialog.Builder builder = new AlertDialog.Builder(ScrollingActivity.this);
-
-// 2. Chain together various setter methods to set the dialog characteristics
-            builder.setMessage(R.string.app_name)
-                    .setTitle(R.string.welcome);
-
-// 3. Get the AlertDialog from create()
+            // 2. Chain together various setter methods to set the dialog characteristics
+            builder.setMessage(R.string.app_name).setTitle(R.string.welcome);
+            // 3. Get the AlertDialog from create()
             AlertDialog dialog = builder.create();
-
-           
-
-
             return true;
-            //
         }
         if (id == R.id.rate_settings) {
             rateApp();
@@ -151,7 +148,6 @@ public class ScrollingActivity extends AppCompatActivity {
             sendEmail();
             return true;
         }
-
         return super.onOptionsItemSelected(item);
     }
 
@@ -181,30 +177,50 @@ public class ScrollingActivity extends AppCompatActivity {
         return intent;
     }
 
-    public void sendEmail() {
+    public void sendEmail(){
         Log.i("Send email", "");
-
         String[] TO = {"aidansliney@gmail.com"};
-        String[] CC = {"wsliney@gmail.com"};
+        String[] CC = {"aidansliney@gmail.com"};
         Intent emailIntent = new Intent(Intent.ACTION_SEND);
         emailIntent.setData(Uri.parse("mailto:"));
         emailIntent.setType("text/plain");
         emailIntent.putExtra(Intent.EXTRA_EMAIL, TO);
         emailIntent.putExtra(Intent.EXTRA_CC, CC);
-        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Draw Feedback");
+        emailIntent.putExtra(Intent.EXTRA_SUBJECT, "Hear Feedback");
         emailIntent.putExtra(Intent.EXTRA_TEXT, "Please write your feedback here. The more info the better");
 
         try {
             startActivity(Intent.createChooser(emailIntent, "Send mail..."));
-            //finish();
         } catch (android.content.ActivityNotFoundException ex) {
 
         }
     }
 
+    // animations
+    public void move(View view, int durat){
+        ImageView image = (ImageView) view;
+        Animation animation1 = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.move_right);
+        animation1.setDuration(durat);
+        image.startAnimation(animation1);
+    }
+    //refactor: Merge the below
+    public void fade(View view){
+        Animation animation1 = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fade_out);
+        view.startAnimation(animation1);
+        animation1.setFillAfter(true);
+    }
 
+    public void fadeIn(View view){
+        Animation animation1 = AnimationUtils.loadAnimation(getApplicationContext(), R.anim.fade_in);
+        view.startAnimation(animation1);
+        animation1.setFillAfter(true);
+    }
 
+    public void startQuietAnimation() {
+        move(findViewById(R.id.balloon), 85000);
+        move(findViewById(R.id.cloud),425000);
+        move(findViewById(R.id.boat), 100000);
 
-
+    }
 
 }
