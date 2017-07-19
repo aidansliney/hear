@@ -1,13 +1,11 @@
 package com.hear2.aidansliney.hear2;
 
 import android.Manifest;
-import android.animation.ArgbEvaluator;
-import android.animation.ValueAnimator;
-import android.app.Activity;
 import android.content.ActivityNotFoundException;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.graphics.Color;
+import android.media.AudioManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
@@ -19,21 +17,24 @@ import android.support.v7.app.AlertDialog;
 import android.support.v7.app.AppCompatActivity;
 import android.support.v7.widget.Toolbar;
 import android.util.Log;
-import android.view.View;
 import android.view.Menu;
 import android.view.MenuItem;
+import android.view.View;
 import android.view.animation.Animation;
 import android.view.animation.AnimationUtils;
 import android.widget.ImageView;
 import android.widget.SeekBar;
 import android.widget.TextView;
+
 import com.cleveroad.audiovisualization.AudioVisualization;
 import com.cleveroad.audiovisualization.DbmHandler;
 
 
 public class ScrollingActivity extends AppCompatActivity {
 
+    private AudioManager audioManager;
     private AudioVisualization audioVisualization;
+    private Record record;
 
     int listening = 0;
 
@@ -48,7 +49,8 @@ public class ScrollingActivity extends AppCompatActivity {
         //Aidan: linking the visualiser
         //https://github.com/Cleveroad/WaveInApp
         audioVisualization = (AudioVisualization) findViewById(R.id.visualizer_view);
-        audioVisualization.linkTo(DbmHandler.Factory.newVisualizerHandler(getApplicationContext(), 0));
+
+        audioManager = (AudioManager) getSystemService(Context.AUDIO_SERVICE);
 
         final SeekBar slider = (SeekBar) findViewById(R.id.slider);
         FloatingActionButton fab = (FloatingActionButton) findViewById(R.id.fab);
@@ -73,14 +75,20 @@ public class ScrollingActivity extends AppCompatActivity {
                     fab.setImageResource(android.R.drawable.ic_media_pause);
                     listening  = 1; //on
                     Snackbar.make(view, "Listening started...", Snackbar.LENGTH_LONG).setAction("Action", null).show();
-                }
-
-                else
-                {
+                    int audioSessionId = audioManager.generateAudioSessionId();
+                    record = new Record(audioSessionId);
+                    record.start();
+                    audioVisualization.linkTo(DbmHandler.Factory.newVisualizerHandler(ScrollingActivity.this, audioSessionId));
+                    audioVisualization.onResume();
+                } else {
                     //stop listening
                     fadeIn(findViewById(R.id.noisyScene));
                     fab.setImageResource(android.R.drawable.ic_lock_silent_mode_off);
                     listening  = 0; //off
+                    if (record != null) {
+                        record.stopRecording();
+                    }
+                    audioVisualization.onPause();
                     Snackbar.make(view, "Listening stopped...", Snackbar.LENGTH_LONG).setAction("Action", null).show();
                 }
             }
@@ -105,6 +113,12 @@ public class ScrollingActivity extends AppCompatActivity {
     }
 
     @Override
+    public void onDestroy() {
+        audioVisualization.release();
+        super.onDestroy();
+    }
+
+    @Override
     public void onResume() {
         super.onResume();
         audioVisualization.onResume();
@@ -112,7 +126,7 @@ public class ScrollingActivity extends AppCompatActivity {
 
     @Override
     public void onPause() {
-       audioVisualization.onPause();
+        audioVisualization.onPause();
         super.onPause();
     }
 
