@@ -3,7 +3,7 @@ package com.hear2.aidansliney.hear2;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 
-public class infoActivity extends AppCompatActivity {
+public class InfoActivity extends AppCompatActivity {
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
